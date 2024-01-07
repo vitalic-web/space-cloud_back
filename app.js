@@ -34,7 +34,7 @@ async function runDB() {
     await client.connect();
     console.log('Pinged your deployment. You successfully connected to MongoDB!');
   } catch (error) {
-    console.error("Error connecting to MongoDB: ", error);
+    console.error('Error connecting to MongoDB: ', error);
   }
 }
 
@@ -51,19 +51,17 @@ app.post('/register', async (req, res) => {
 });
 
 app.post('/login', async (req, res) => {
-  const user = users.find(user => user.username === req.body.username);
-  if (!user) {
-    return res.status(400).send('Cannot find user');
-  }
   try {
-    if (await bcrypt.compare(req.body.password, user.password)) {
-      const accessToken = jwt.sign({ username: user.username }, SECRET_KEY);
-      res.json({ accessToken: accessToken });
+    const userDB = await users.findOne({ username: req.body.username });
+    if (userDB && await bcrypt.compare(req.body.password, userDB.password)) {
+      const accessToken = jwt.sign({ username: userDB.username }, SECRET_KEY);
+      res.json({ accessToken });
     } else {
-      res.send('Not Allowed');
+      res.status(401).send('Invalid username or password');
     }
-  } catch {
-    res.status(500).send();
+  } catch (error) {
+    console.error('Login error: ', error);
+    res.status(500).send('Internal Server Error');
   }
 });
 
