@@ -2,67 +2,84 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const mongoose = require('mongoose');
+const session = require('express-session');
+const passport = require('passport');
+const bodyParser = require('body-parser');
+const flash = require('connect-flash');
 const port = 3000;
-const { MongoClient, ServerApiVersion } = require('mongodb');
 
 require('dotenv').config();
 
+const corsOptions = {
+  origin: '*', // Это позволяет запросы со всех источников
+  methods: ['GET', 'POST', 'DELETE', 'UPDATE', 'PUT', 'PATCH']
+};
+
 const app = express();
 app.use(express.json());
-app.use(cors({
-  origin: 'http://localhost:8080',
-  methods: ['GET', 'POST', 'DELETE', 'UPDATE', 'PUT', 'PATCH']
-}));
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(session({ secret: 'secret', resave: false, saveUninitialized: true }));
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(flash());
+app.use(cors(corsOptions));
 
-const SECRET_KEY = 'your_secret_key';
-
-const uri = `mongodb+srv://vtlstk:${process.env.DB_PASSWORD}@cluster0.qpufjcu.mongodb.net/?retryWrites=true&w=majority`;
-
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
-});
-
-const database = client.db('space-cloud');
-const users = database.collection('users');
+const uri = `mongodb+srv://vtlstk:${process.env.DB_PASSWORD}@cluster0.qpufjcu.mongodb.net/space-cloud?retryWrites=true&w=majority`;
 
 async function runDB() {
   try {
-    await client.connect();
-    console.log('Pinged your deployment. You successfully connected to MongoDB!');
+    await mongoose.connect(uri);
+    console.log("Successfully connected to MongoDB using Mongoose!");
   } catch (error) {
     console.error('Error connecting to MongoDB: ', error);
   }
 }
 
+const initializePassport = require('./passport-config');
+initializePassport(passport);
+
+const User = require('./models/User');
+
 app.post('/register', async (req, res) => {
   try {
-    const hashedPassword = await bcrypt.hash(req.body.password, 10);
-    const user = { username: req.body.username, password: hashedPassword };
-    await users.insertOne(user);
-    res.status(201).send('User registered');
-  } catch(err) {
-    console.log(err);
-    res.status(500).send();
+    const newUser = new User({ username: req.body.username, password: req.body.password });
+    await newUser.save();
+    res.redirect('/login');
+  } catch (error) {
+    console.error(error);
+    res.redirect('/register');
   }
 });
 
-app.post('/login', async (req, res) => {
-  try {
-    const userDB = await users.findOne({ username: req.body.username });
-    if (userDB && await bcrypt.compare(req.body.password, userDB.password)) {
-      const accessToken = jwt.sign({ username: userDB.username }, SECRET_KEY);
-      res.json({ accessToken });
-    } else {
-      res.status(401).send('Invalid username or password');
+app.post('/login', (req, res, next) => {
+  passport.authenticate('local', (err, user, info) => {
+    if (err) {
+      // Обработка ошибки аутентификации
+      console.log('err', err);
+      return next(err);
     }
-  } catch (error) {
-    console.error('Login error: ', error);
-    res.status(500).send('Internal Server Error');
-  }
+    if (!user) {
+      // Аутентификация неудачна
+      console.log('!user')
+      return res.redirect('/login');
+    }
+    req.logIn(user, (err) => {
+      if (err) {
+        // Обработка ошибки при сохранении данных пользователя в сессию
+        console.log('logIn err', err);
+        return next(err);
+      }
+      // Аутентификация успешна
+      console.log('success');
+      return res.redirect('/');
+    });
+  })(req, res, next);
+});
+
+app.get('/logout', (req, res) => {
+  req.logout();
+  res.redirect('/login');
 });
 
 async function startServer() {
