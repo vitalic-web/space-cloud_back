@@ -1,6 +1,4 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const session = require('express-session');
@@ -45,36 +43,46 @@ app.post('/register', async (req, res) => {
   try {
     const newUser = new User({ username: req.body.username, password: req.body.password });
     await newUser.save();
-    res.redirect('/login');
+    res.json({ message: 'Registration successful', user: { username: newUser.username } });
   } catch (error) {
     console.error(error);
-    res.redirect('/register');
+    res.status(500).json({ message: 'Registration failed', error: error.message });
   }
 });
 
 app.post('/login', (req, res, next) => {
   passport.authenticate('local', (err, user, info) => {
     if (err) {
-      // Обработка ошибки аутентификации
       console.log('err', err);
-      return next(err);
+      return res.status(500).json({ message: 'Error during authentication', error: err });
     }
     if (!user) {
-      // Аутентификация неудачна
-      console.log('!user')
-      return res.redirect('/login');
+      console.log('!user');
+      return res.status(401).json({ message: 'Authentication failed', user: null });
     }
     req.logIn(user, (err) => {
       if (err) {
-        // Обработка ошибки при сохранении данных пользователя в сессию
         console.log('logIn err', err);
-        return next(err);
+        return res.status(500).json({ message: 'Error logging in', error: err });
       }
-      // Аутентификация успешна
-      console.log('success');
-      return res.redirect('/');
+      // Аутентификация успешна, установка cookie
+      res.cookie('user_id', user.id, {
+        maxAge: 24 * 60 * 60 * 1000, // срок действия cookie (24 часа)
+        httpOnly: true, // Cookie недоступен через JavaScript в браузере (повышение безопасности)
+      });
+
+      return res.json({ message: 'Authentication successful', user: { username: user.username } });
     });
   })(req, res, next);
+});
+
+
+app.post('/check-auth', (req, res) => {
+  if (req.isAuthenticated()) { // используя Passport.js
+    res.json({ isAuthenticated: true });
+  } else {
+    res.json({ isAuthenticated: false });
+  }
 });
 
 app.get('/logout', (req, res) => {
