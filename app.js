@@ -5,6 +5,9 @@ const session = require('express-session');
 const passport = require('passport');
 const bodyParser = require('body-parser');
 const flash = require('connect-flash');
+const authenticateToken = require('./middlewares/authenticateToken');
+const jwt = require('jsonwebtoken');
+
 const port = 3000;
 
 require('dotenv').config();
@@ -52,42 +55,24 @@ app.post('/register', async (req, res) => {
 
 app.post('/login', (req, res, next) => {
   passport.authenticate('local', (err, user, info) => {
-    if (err) {
-      console.log('err', err);
-      return res.status(500).json({ message: 'Error during authentication', error: err });
-    }
-    if (!user) {
-      console.log('!user');
-      return res.status(401).json({ message: 'Authentication failed', user: null });
+    if (err || !user) {
+      return res.status(401).json({ message: 'Authentication failed' });
     }
     req.logIn(user, (err) => {
-      if (err) {
-        console.log('logIn err', err);
-        return res.status(500).json({ message: 'Error logging in', error: err });
-      }
-      // Аутентификация успешна, установка cookie
-      res.cookie('user_id', user.id, {
-        maxAge: 24 * 60 * 60 * 1000, // срок действия cookie (24 часа)
-        httpOnly: true, // Cookie недоступен через JavaScript в браузере (повышение безопасности)
-      });
+      if (err) return res.status(500).json({ message: 'Error logging in', error: err });
 
-      return res.json({ message: 'Authentication successful', user: { username: user.username } });
+      const token = jwt.sign({ username: user.username }, process.env.JWT_SECRET, { expiresIn: '24h' });
+      res.json({ message: 'Authentication successful', username: user.username, token });
     });
   })(req, res, next);
 });
 
-
-app.post('/check-auth', (req, res) => {
-  if (req.isAuthenticated()) { // используя Passport.js
-    res.json({ isAuthenticated: true });
-  } else {
-    res.json({ isAuthenticated: false });
-  }
+app.get('/logout', (req, res) => {
+  res.json({ message: 'Logged out' });
 });
 
-app.get('/logout', (req, res) => {
-  req.logout();
-  res.redirect('/login');
+app.get('/todo-list', authenticateToken, (req, res) => {
+  res.json({ message: 'This is a protected route' });
 });
 
 async function startServer() {
