@@ -111,8 +111,31 @@ app.post('/token', async (req, res) => {
   }
 });
 
+// TODO: доработать метод
 app.get('/logout', (req, res) => {
   res.json({ message: 'Logged out' });
+});
+
+const Todo = require('./models/Todo');
+
+app.post('/todos', authenticateToken, async (req, res) => {
+  try {
+    const todo = new Todo({
+      user: req.user.userId, // Использование userId из верифицированного токена
+      title: req.body.title,
+      description: req.body.description,
+      completed: req.body.completed,
+      files: req.body.files,
+      comment: req.body.comment
+    });
+
+    console.log('todo', todo);
+
+    await todo.save();
+    res.status(201).send(todo);
+  } catch (error) {
+    res.status(400).send(error);
+  }
 });
 
 app.get('/todo-list', authenticateToken, (req, res) => {
