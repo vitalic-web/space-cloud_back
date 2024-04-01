@@ -138,7 +138,15 @@ app.post('/todos', authenticateToken, async (req, res) => {
 app.get('/todo-list', authenticateToken, async (req, res) => {
   try {
     const todos = await Todo.find({ user: req.user.userId });
-    res.json(todos);
+    const filteredTodos = todos.reduce((acc, item) => {
+      if (item.completed) {
+        acc.completed.push(item);
+      } else {
+        acc.notCompleted.push(item);
+      }
+      return acc;
+    }, { completed: [], notCompleted: [] });
+    res.json(filteredTodos);
   } catch (error) {
     console.error('Failed to get todo list:', error);
     res.status(500).json({ message: 'Internal server error' });
