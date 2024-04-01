@@ -135,6 +135,25 @@ app.post('/todos', authenticateToken, async (req, res) => {
   }
 });
 
+app.patch('/todos/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const update = req.body; // Получаем обновленные данные из тела запроса
+
+  try {
+    // Проверяем, принадлежит ли TODO пользователю отправившему запрос
+    const todo = await Todo.findOne({ _id: id, user: req.user.userId });
+    if (!todo) {
+      return res.status(404).json({ message: 'Todo not found or you do not have permission to edit it.' });
+    }
+
+    const updatedTodo = await Todo.findByIdAndUpdate(id, update, { new: true });
+    res.json(updatedTodo);
+  } catch (error) {
+    console.error('Error updating todo:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
 app.get('/todo-list', authenticateToken, async (req, res) => {
   try {
     const todos = await Todo.find({ user: req.user.userId });
