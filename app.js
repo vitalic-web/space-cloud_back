@@ -128,9 +128,6 @@ app.post('/todos', authenticateToken, async (req, res) => {
       files: req.body.files,
       comment: req.body.comment
     });
-
-    console.log('todo', todo);
-
     await todo.save();
     res.status(201).send(todo);
   } catch (error) {
@@ -138,8 +135,14 @@ app.post('/todos', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/todo-list', authenticateToken, (req, res) => {
-  res.json({ message: 'This is a protected route' });
+app.get('/todo-list', authenticateToken, async (req, res) => {
+  try {
+    const todos = await Todo.find({ user: req.user.userId });
+    res.json(todos);
+  } catch (error) {
+    console.error('Failed to get todo list:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 });
 
 async function startServer() {
