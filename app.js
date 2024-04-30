@@ -172,6 +172,20 @@ app.get('/todo-list', authenticateToken, async (req, res) => {
   }
 });
 
+app.delete('/todos', authenticateToken, async (req, res) => {
+  try {
+    // Удаление всех Todo принадлежащих пользователю, использующему этот токен
+    const result = await Todo.deleteMany({ user: req.user.userId });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'No todos found for this user.' });
+    }
+    res.json({ message: `Successfully deleted ${result.deletedCount} todos.` });
+  } catch (error) {
+    console.error('Error deleting todos:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
 async function startServer() {
   try {
     await runDB();
