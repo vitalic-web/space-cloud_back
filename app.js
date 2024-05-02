@@ -237,14 +237,14 @@ app.post('/todos/:todoId/files', authenticateToken, upload.single('file'), (req,
       name: req.file.originalname,
       data: req.file.buffer,
       contentType: req.file.mimetype,
-      downloadLink: 'downloadLink', // Это поле будет заполнено после сохранения файла
+      downloadLink: 'downloadLink',
     });
 
     // Сохранение файла в MongoDB
     const savedFile = await newFile.save();
 
     // Обновление downloadLink
-    savedFile.downloadLink = `files/${savedFile._id}`;
+    savedFile.downloadLink = `files/${savedFile._id}/${req.file.originalname}`;
     await savedFile.save();
 
     // Обновление ToDo с новым файлом
@@ -258,7 +258,7 @@ app.post('/todos/:todoId/files', authenticateToken, upload.single('file'), (req,
   }
 });
 
-app.get('/files/:fileId', async (req, res) => {
+app.get('/files/:fileId/:fileName', async (req, res) => {
   const { fileId } = req.params;
 
   try {
@@ -276,6 +276,48 @@ app.get('/files/:fileId', async (req, res) => {
   } catch (error) {
     console.error('Error downloading file:', error);
     res.status(500).send('Error downloading file');
+  }
+});
+
+app.patch('/files/:fileId/download-link', authenticateToken, async (req, res) => {
+  const { fileId } = req.params;
+  const { newDownloadLink } = req.body;
+
+  if (!newDownloadLink) {
+    return res.status(400).json({ message: 'Требуется новая ссылка на скачивание.' });
+  }
+
+  try {
+    // Поиск файла по ID
+    const file = await FileToDo.findById(fileId);
+    if (!file) {
+      return res.status(404).json({ message: 'Файл не найден.' });
+    }
+
+    // Обновление ссылки на скачивание в объекте файла
+    file.downloadLink = `files/${file._id}/${newDownloadLink}`;
+    await file.save();
+
+    // Обновление ссылки на скачивание в объекте Todo
+    const todo = await Todo.findOne({ 'files._id': fileId });
+
+    if (!todo) {
+      return res.status(404).json({ message: 'Todo не найден.' });
+    }
+
+    // Путь к полю внутри массива, который нужно обновить
+    const fileIndex = `files.$.downloadLink`;
+
+    // Обновление ссылки на скачивание в объекте Todo
+    await Todo.updateOne(
+      { 'files._id': fileId },
+      { $set: { [fileIndex]: `files/${file._id}/${newDownloadLink}` } }
+    );
+
+    res.json({ message: 'Ссылка на скачивание успешно обновлена', file });
+  } catch (error) {
+    console.error('Ошибка при обновлении ссылки на скачивание:', error);
+    res.status(500).json({ message: 'Не удалось обновить ссылку на скачивание', error: error.message });
   }
 });
 
