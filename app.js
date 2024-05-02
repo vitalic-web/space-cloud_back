@@ -235,6 +235,8 @@ app.post('/todos/:todoId/files', authenticateToken, upload.single('file'), (req,
     // Создание объекта файла
     const newFile = new FileToDo({
       name: req.file.originalname,
+      data: req.file.buffer,
+      contentType: req.file.mimetype,
       downloadLink: 'downloadLink', // Это поле будет заполнено после сохранения файла
     });
 
@@ -242,7 +244,7 @@ app.post('/todos/:todoId/files', authenticateToken, upload.single('file'), (req,
     const savedFile = await newFile.save();
 
     // Обновление downloadLink
-    savedFile.downloadLink = `http://localhost:3000/files/${savedFile._id}`;
+    savedFile.downloadLink = `files/${savedFile._id}`;
     await savedFile.save();
 
     // Обновление ToDo с новым файлом
@@ -260,17 +262,20 @@ app.get('/files/:fileId', async (req, res) => {
   const { fileId } = req.params;
 
   try {
-    const file = await File.findById(fileId);
+    // Поиск файла по ID
+    const file = await FileToDo.findById(fileId);
     if (!file) {
       return res.status(404).send('File not found.');
     }
 
-    // Симуляция отправки файла клиенту
-    res.setHeader('Content-Disposition', `attachment; filename=${file.name}`);
-    res.send(file.downloadLink);
+    // Отправка файла
+    const fileBuffer = file.data; // 'data' предполагает поле, где хранятся бинарные данные файла
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', 'attachment; filename=' + file.name);
+    res.send(fileBuffer); // Отправляем бинарные данные клиенту
   } catch (error) {
-    console.error('Failed to download file:', error);
-    res.status(500).send('Failed to download file');
+    console.error('Error downloading file:', error);
+    res.status(500).send('Error downloading file');
   }
 });
 
