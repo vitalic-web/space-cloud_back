@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const FileSchema = new mongoose.Schema({
-  fileName: { type: String, required: true },
+  name: { type: String, required: true },
   downloadLink: { type: String, required: true }
 });
 

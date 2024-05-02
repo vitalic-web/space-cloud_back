@@ -6,6 +6,7 @@ const passport = require('passport');
 const bodyParser = require('body-parser');
 const flash = require('connect-flash');
 const authenticateToken = require('./middlewares/authenticateToken');
+const handleMulterError = require('./middlewares/handleMulterError');
 const jwt = require('jsonwebtoken');
 
 const port = 3000;
@@ -204,6 +205,72 @@ app.delete('/todos', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error deleting todos:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+});
+
+const multer = require('multer');
+const storage = multer.memoryStorage(); // Хранение файлов в памяти
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 16 * 1024 * 1024 } // размер файла не более 16 MB, ограничение MongoDb
+});
+const FileToDo = require('./models/File');
+
+app.post('/todos/:todoId/files', authenticateToken, upload.single('file'), (req, res, next) => {
+  // Проверяем, есть ли файл после работы multer
+  if (!req.file) {
+    return res.status(400).send('No file uploaded.');
+  }
+  next();
+}, handleMulterError, async (req, res) => {
+  const { todoId } = req.params;
+
+  try {
+    // Поиск соответствующего ToDo
+    const todo = await Todo.findById(todoId);
+    if (!todo) {
+      return res.status(404).send('ToDo not found.');
+    }
+
+    // Создание объекта файла
+    const newFile = new FileToDo({
+      name: req.file.originalname,
+      downloadLink: 'downloadLink', // Это поле будет заполнено после сохранения файла
+    });
+
+    // Сохранение файла в MongoDB
+    const savedFile = await newFile.save();
+
+    // Обновление downloadLink
+    savedFile.downloadLink = `http://localhost:3000/files/${savedFile._id}`;
+    await savedFile.save();
+
+    // Обновление ToDo с новым файлом
+    todo.files.push(savedFile);
+    await todo.save();
+
+    res.status(201).send({ message: 'File uploaded successfully', file: savedFile });
+  } catch (error) {
+    console.error('Failed to upload file:', error);
+    res.status(500).send('Failed to upload file');
+  }
+});
+
+app.get('/files/:fileId', async (req, res) => {
+  const { fileId } = req.params;
+
+  try {
+    const file = await File.findById(fileId);
+    if (!file) {
+      return res.status(404).send('File not found.');
+    }
+
+    // Симуляция отправки файла клиенту
+    res.setHeader('Content-Disposition', `attachment; filename=${file.name}`);
+    res.send(file.downloadLink);
+  } catch (error) {
+    console.error('Failed to download file:', error);
+    res.status(500).send('Failed to download file');
   }
 });
 
