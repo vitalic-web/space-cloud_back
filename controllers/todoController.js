@@ -1,4 +1,5 @@
 const Todo = require('../models/Todo');
+const FileToDo = require('../models/File');
 
 async function addTodo(req, res) {
   try {
@@ -77,6 +78,16 @@ async function getTodoList(req, res) {
 
 async function deleteAllTodos(req, res) {
   try {
+    // Найти все Todo принадлежащие пользователю, использующему этот токен
+    const todos = await Todo.find({ user: req.user.userId });
+
+    for (const todo of todos) {
+      // Удалить все файлы, связанные с текущим Todo
+      for (const file of todo.files) {
+        await FileToDo.findByIdAndDelete(file._id);
+      }
+    }
+
     // Удаление всех Todo принадлежащих пользователю, использующему этот токен
     const result = await Todo.deleteMany({ user: req.user.userId });
     if (result.deletedCount === 0) {
