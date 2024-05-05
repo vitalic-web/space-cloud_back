@@ -321,6 +321,29 @@ app.patch('/files/:fileId/download-link', authenticateToken, async (req, res) =>
   }
 });
 
+app.delete('/files/:fileId/:todoId', authenticateToken, async (req, res) => {
+  const { fileId, todoId } = req.params;
+
+  try {
+    // Находим и удаляем файл из коллекции файлов
+    const file = await FileToDo.findByIdAndDelete(fileId);
+    if (!file) {
+      return res.status(404).send({ message: 'File not found.' });
+    }
+
+    // Обновляем связанный Todo, удаляя файл из массива files в документе Todo
+    const updatedTodo = await Todo.findByIdAndUpdate(todoId, {
+      $pull: { files: { _id: fileId } }
+    }, { new: true });
+
+    res.status(200).send({ message: 'File deleted successfully.', todo: updatedTodo });
+  } catch (error) {
+    console.error('Failed to delete file:', error);
+    res.status(500).send({ message: 'Error deleting file', error: error.message });
+  }
+});
+
+
 async function startServer() {
   try {
     await runDB();
